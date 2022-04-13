@@ -1,4 +1,4 @@
-import os, requests, sys, joblib
+import os, requests, sys, joblib, datetime
 
 from flask import Flask, render_template, request
 from pymongo import MongoClient
@@ -13,53 +13,58 @@ import pandas as pd
 
 load_dotenv()
 
-
 app = Flask(__name__)
 
 
 @app.route("/train", methods=["POST"])
 def train_model():
     MODEL_FILE = "model.pkl"
+    MODE = os.environ.get("MODE", "prod")
     DB_NAME = os.environ.get('MONGO_DB_NAME', None)
     CONNECTION_STRING = os.environ.get("MONGO_CONNECTION_STRING", None)
 
     #connect to mongodb
     client = MongoClient(CONNECTION_STRING)
-    
-    collection = client[DB_NAME]['weather_data']
+
+    collection = None
+    if MODE != "test":
+        collection = client[DB_NAME]['weather_data']
+    else:
+        collection = client[DB_NAME]['weather_data_test']
+
     cursor = collection.find()
     df = pd.DataFrame(list(cursor))
 
-    # need to research values to be used
-    # df['pressure'] = pd.to_numeric(df['pressure'])
-    # df['temperature'] = pd.to_numeric(df['temperature'])
-    # df = df.sort_values('Observation Value')
-    print(df)
-
     y = df["label"]
-    X = df.drop("label", axis=1)
+    X = df[['baro_pressure', 'ext_temp', 'humidity', 'wind_speed', 'wind_direction']]
   
     #train with sklearn
-    X_train, X_test, y_train, y_test = train_test_split(df, test_size=0.3)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
     dtree_model = DecisionTreeClassifier().fit(X_train, y_train)
-    dtree_predictions = dtree_model.predict(X_test)
     
+    dtree_predictions = dtree_model.predict(X_test)
     cm = confusion_matrix(y_test, dtree_predictions)
-    score = dtree_model.score(y_test,  d_tree.predictions()) #get model accuracy
-
-    #create model file
-    joblib.dump(dtree_model, MODEL_FILE)
+    score = dtree_model.score(X_test, y_test) #get model accuracy
+    
+    joblib.dump(dtree_model, MODEL_FILE) #create model file
 
     #save to mongodb
-    ml_collection = client[DB_NAME]["ml"]
+    ml_collection = None
+    if MODE != "test":
+        ml_collection = client[DB_NAME]["ml"]
+    else:
+        ml_collection = client[DB_NAME]["ml_test"]
+
     with open(MODEL_FILE, "rb") as f:
-        encoded = Binary(f.read())
+        model_bin = Binary(f.read())
+
+    dt = datetime.datetime.now()
     ml_collection.insert_one({
-        "filename": MODEL_FILE, 
-        "file": encoded, 
-        "description": "ML Model", 
+        "file": model_bin, 
+        "description": f"Dtree Model Snapshot at {dt}", 
         "accuracy": score,
-        "confusion_matrix": str(cm) 
+        "confusion_matrix": str(cm),
+        "datetime": dt
         })
     
     return "Successful!"
