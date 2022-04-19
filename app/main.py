@@ -8,17 +8,23 @@ from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import confusion_matrix
 from bson.binary import Binary
+from sklearn import tree
+import matplotlib.pyplot as plt
 
 import pandas as pd
+
+# import traceback
+# from werkzeug.wsgi import ClosingIterator
+
 
 load_dotenv()
 
 app = Flask(__name__)
 
-
 @app.route("/train", methods=["POST"])
 def train_model():
     MODEL_FILE = "model.pkl"
+    IMAGE_FILE="dtree.png"
     MODE = os.environ.get("MODE", "prod")
     DB_NAME = os.environ.get('MONGO_DB_NAME', None)
     CONNECTION_STRING = os.environ.get("MONGO_CONNECTION_STRING", None)
@@ -48,6 +54,15 @@ def train_model():
     
     joblib.dump(dtree_model, MODEL_FILE) #create model file
 
+    #create image
+    fig = plt.figure(figsize=(25,20))
+    _ = tree.plot_tree(dtree_model, 
+                    feature_names=['baro_pressure', 'ext_temp', 'humidity', 'wind_speed', 'wind_direction'],  
+                    class_names=['Cloudy', 'Sunny', 'Very Sunny'],
+                    filled=True)
+                
+    fig.savefig("dtree.png")
+
     #save to mongodb
     ml_collection = None
     if MODE != "test":
@@ -58,9 +73,13 @@ def train_model():
     with open(MODEL_FILE, "rb") as f:
         model_bin = Binary(f.read())
 
+    with open(IMAGE_FILE, "rb") as f:
+        image_bin = Binary(f.read())
+
     dt = datetime.datetime.now()
     ml_collection.insert_one({
         "file": model_bin, 
+        "image-png": image_bin,
         "description": f"Dtree Model Snapshot at {dt}", 
         "accuracy": score,
         "confusion_matrix": str(cm),
