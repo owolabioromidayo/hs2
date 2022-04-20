@@ -23,6 +23,9 @@ app = Flask(__name__)
 
 @app.route("/train", methods=["POST"])
 def train_model():
+    if request.args.get("password") != os.environ.get("TRAINING_PASSWORD"):
+        return "Not authorized", 401
+
     MODEL_FILE = "model.pkl"
     IMAGE_FILE="dtree.png"
     MODE = os.environ.get("MODE", "prod")
