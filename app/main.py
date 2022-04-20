@@ -1,4 +1,4 @@
-import os, requests, sys, joblib, datetime
+import os, requests, sys, joblib, datetime, threading
 
 from flask import Flask, render_template, request
 from pymongo import MongoClient
@@ -10,22 +10,15 @@ from sklearn.metrics import confusion_matrix
 from bson.binary import Binary
 from sklearn import tree
 import matplotlib.pyplot as plt
-
 import pandas as pd
 
 # import traceback
 # from werkzeug.wsgi import ClosingIterator
 
-
 load_dotenv()
-
 app = Flask(__name__)
 
-@app.route("/train", methods=["POST"])
-def train_model():
-    if request.args.get("password") != os.environ.get("TRAINING_PASSWORD"):
-        return "Not authorized", 401
-
+def train():
     MODEL_FILE = "model.pkl"
     IMAGE_FILE="dtree.png"
     MODE = os.environ.get("MODE", "prod")
@@ -88,8 +81,17 @@ def train_model():
         "confusion_matrix": str(cm),
         "datetime": dt
         })
+
+
+@app.route("/train", methods=["POST"])
+def train_model():
+    if request.args.get("password") != os.environ.get("TRAINING_PASSWORD"):
+        return "Unauthorized", 401
     
-    return "Successful!"
+    thread = threading.Thread(target=train)
+    thread.start()
+
+    return "Training Model!", 200
 
 
     
