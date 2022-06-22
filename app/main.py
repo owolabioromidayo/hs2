@@ -12,33 +12,26 @@ from sklearn import tree
 import matplotlib.pyplot as plt
 import pandas as pd
 
-# import traceback
-# from werkzeug.wsgi import ClosingIterator
-
 load_dotenv()
 app = Flask(__name__)
 
 def train():
     MODEL_FILE = "model.pkl"
     IMAGE_FILE="dtree.png"
-    MODE = os.environ.get("MODE", "prod")
     DB_NAME = os.environ.get('MONGO_DB_NAME', None)
     CONNECTION_STRING = os.environ.get("MONGO_CONNECTION_STRING", None)
 
     #connect to mongodb
     client = MongoClient(CONNECTION_STRING)
-
-    collection = None
-    if MODE != "test":
-        collection = client[DB_NAME]['weather_data']
-    else:
-        collection = client[DB_NAME]['weather_data_test']
+    collection = client[DB_NAME]['weather_data']
 
     cursor = collection.find()
     df = pd.DataFrame(list(cursor))
+    df.dropna()
 
     y = df["label"]
-    X = df[['baro_pressure', 'ext_temp', 'humidity', 'wind_speed', 'wind_direction']]
+    X = df[['baro_pressure', 'ext_temp', 'humidity', 'wind_speed', 'uv']]
+
   
     #train with sklearn
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
@@ -51,20 +44,57 @@ def train():
     joblib.dump(dtree_model, MODEL_FILE) #create model file
 
     #create image
+    class_names = [
+        "Thunderstorm with light rain",
+        "Thunderstorm with rain",
+        "Thunderstorm with heavy rain",
+        "Thunderstorm with light drizzle",
+        "Thunderstorm with drizzle",
+        "Thunderstorm with heavy drizzle",
+        "Thunderstorm with Hail",
+        "Light Drizzle",
+        "Drizzle",
+        "Heavy Drizzle",
+        "Light Rain",
+        "Moderate Rain",
+        "Heavy Rain",
+        "Freezing rain",
+        "Light shower rain",
+        "Shower rain",
+        "Heavy shower rain",
+        "Light snow",
+        "Snow",
+        "Heavy Snow",
+        "Mix snow/rain",
+        "Sleet",
+        "Heavy sleet",
+        "Snow shower",
+        "Heavy snow shower",
+        "Flurries",
+        "Mist",
+        "Smoke",
+        "Haze",
+        "Sand/dust",
+        "Fog",
+        "Freezing Fog",
+        "Clear sky",
+        "Few clouds",
+        "Scattered clouds",
+        "Broken clouds",
+        "Overcast clouds",
+        "Unknown Precipitation"
+    ]
+
     fig = plt.figure(figsize=(25,20))
     _ = tree.plot_tree(dtree_model, 
-                    feature_names=['baro_pressure', 'ext_temp', 'humidity', 'wind_speed', 'wind_direction'],  
-                    class_names=['Cloudy', 'Sunny', 'Very Sunny'],
+                    feature_names=['baro_pressure', 'ext_temp', 'humidity', 'wind_speed', 'uv'],  
+                    class_names=class_names,
                     filled=True)
                 
     fig.savefig("dtree.png")
 
     #save to mongodb
-    ml_collection = None
-    if MODE != "test":
-        ml_collection = client[DB_NAME]["ml"]
-    else:
-        ml_collection = client[DB_NAME]["ml_test"]
+    ml_collection = client[DB_NAME]["ml"]
 
     with open(MODEL_FILE, "rb") as f:
         model_bin = Binary(f.read())
@@ -79,7 +109,8 @@ def train():
         "description": f"Dtree Model Snapshot at {dt}", 
         "accuracy": score,
         "confusion_matrix": str(cm),
-        "datetime": dt
+        "datetime": dt,
+        "n_samples_used" : len(df)
         })
 
 
