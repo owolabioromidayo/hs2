@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-HOSTNAME = "http://127.0.0.1:5000"
+HOSTNAME = os.environ.get("ML_ENDPOINT") 
 TRAINING_PASSWORD = os.environ.get("TRAINING_PASSWORD")
 URL= f"{HOSTNAME}/train?password={TRAINING_PASSWORD}"
 

@@ -27,11 +27,9 @@ def train():
 
     cursor = collection.find()
     df = pd.DataFrame(list(cursor))
-    df.dropna()
 
     y = df["label"]
     X = df[['baro_pressure', 'ext_temp', 'humidity', 'wind_speed', 'uv']]
-
   
     #train with sklearn
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
@@ -85,9 +83,9 @@ def train():
         "Unknown Precipitation"
     ]
 
-    fig = plt.figure(figsize=(25,20))
+    fig = plt.figure(figsize=(100,100))
     _ = tree.plot_tree(dtree_model, 
-                    feature_names=['baro_pressure', 'ext_temp', 'humidity', 'wind_speed', 'uv'],  
+                    feature_names=['baro_pressure', 'ext_temp', 'humidity', 'wind_speed', 'wind_direction'],  
                     class_names=class_names,
                     filled=True)
                 
