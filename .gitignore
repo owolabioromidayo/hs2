@@ -2,3 +2,5 @@
 __pycache__
 venv
 fake_data.ods
+./lambda/package
+lambda/app.py
